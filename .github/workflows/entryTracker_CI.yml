@@ -1,0 +1,62 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python application
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    # Step 1: Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    # Step 2: Set up Python environment
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+        
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      # Step 4: Run the application in the background so that the workflow can continue to the next steps
+      - name: Start app.py
+        run: |
+          nohup python app.py &
+          
+      # Step 5: Test with curl
+      - name: Test with curl
+        run: |
+          # Wait for the app to start
+          sleep 5
+          
+          # Test the root endpoint
+          curl -X GET http://localhost:5000/ -o output.txt
+          
+          # Test specific API endpoints
+          curl -X GET http://localhost:5000/health
+          
+          # Print response to logs
+          cat output.txt
+
+      # Step 6: Stop the app (Optional)
+      - name: Cleanup
+        run: |
+          pkill -f app.py || true
