@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   web:
-    image: 796973518097.dkr.ecr.ap-south-1.amazonaws.com/barak/entry_tracker:latest
+    build:
+      context: ./
+      dockerfile: Dockerfile
     container_name: flask-app
     environment:
       - DB_HOST=${DB_HOST}    # change this when replacing MySQL contianer with another database
