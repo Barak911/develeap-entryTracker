@@ -1,5 +1,4 @@
-
-name: entryTracker_CI
+name: entryTracker_CI-CD
 
 on:
   push:
@@ -15,43 +14,109 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
+      # Part 1: Pull the application source code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Set up Python environment
+      # Part 2: Build the application: Set up Python environment
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
         with:
           python-version: "3.10"
 
-      # Step 3: Install dependencies
+      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Step 4: Run the application in the background so that the workflow can continue to the next steps
+      # Run the application in the background
       - name: Start app.py
         run: |
           nohup python app.py &
 
-      # Step 5: Test with curl
-      - name: Test with curl
+      # Part 3: Run unit tests
+      - name: Test the application with curl
         run: |
-          # Wait for the app to start
+          echo "Waiting for the application to start..."
           sleep 5
-          
-          # Test the root endpoint
-          curl -X GET http://localhost:5000/ -o output.txt
-          
-          # Test specific API endpoints
-          curl -X GET http://localhost:5000/health
-          
-          # Print response to logs
-          cat output.txt
 
-      # Step 6: Stop the app (Optional)
+          echo "Testing the application..."
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" http://localhost:5000)
+
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "Error: Expected HTTP 200 but got $RESPONSE"
+            cat response.txt
+            exit 1
+          fi
+
+          echo "Test successful! Application returned HTTP 200."
+          echo "Response from the application:"
+          cat response.txt
+
+      # Stop the app
       - name: Cleanup
         run: |
           pkill -f app.py || true
+
+      # Part 4: Run E2E Tests
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Deploy and Run E2E Tests
+        run: |
+          # Launch EC2 instance
+          echo "Launching EC2 instance..."
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ami-053b12d3152c0cc71 \
+            --count 1 \
+            --instance-type t3a.small \
+            --iam-instance-profile Name=barak_CICD_AutomationRole \
+            --security-group-ids sg-09fae402d9e4456db \
+            --subnet-id subnet-0535524901695176d \
+            --associate-public-ip-address \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          echo "Instance ID: $INSTANCE_ID"
+
+          # Wait for the instance to be ready
+          echo "Waiting for the instance to be ready..."
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+          # Install and start Docker
+          echo "Configuring Docker on EC2 instance..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Install Docker and Docker Compose" \
+            --parameters commands=[
+              "yum update -y",
+              "yum install -y docker",
+              "systemctl start docker",
+              "curl -L 'https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64' -o /usr/local/bin/docker-compose",
+              "chmod +x /usr/local/bin/docker-compose",
+              "docker compose version"
+            ] \
+            --region ap-south-1
+
+          # Download and execute E2E test script
+          echo "Downloading and executing E2E test script..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "aws s3 cp s3://entytracker-cicd/e2e_test.sh /home/ec2-user/e2e_test.sh",
+              "chmod +x /home/ec2-user/e2e_test.sh",
+              "/home/ec2-user/e2e_test.sh"
+            ] \
+            --region ap-south-1
+
+          # Terminate EC2 instance
+          echo "Terminating EC2 instance..."
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
