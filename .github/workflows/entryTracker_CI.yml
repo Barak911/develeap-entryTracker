@@ -40,16 +40,13 @@ jobs:
         run: |
           echo "Waiting for the application to start..."
           sleep 5
-
           echo "Testing the application..."
           RESPONSE=$(curl -s -o response.txt -w "%{http_code}" http://localhost:5000)
-
           if [ "$RESPONSE" -ne 200 ]; then
             echo "Error: Expected HTTP 200 but got $RESPONSE"
             cat response.txt
             exit 1
           fi
-
           echo "Test successful! Application returned HTTP 200."
           echo "Response from the application:"
           cat response.txt
@@ -58,14 +55,6 @@ jobs:
       - name: Cleanup
         run: |
           pkill -f app.py || true
-
-      # Configure AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
 
       # Part 4: Deploy to Staging - Step 1: Deploy Instance
       - name: Deploy Instance
@@ -82,19 +71,30 @@ jobs:
             --associate-public-ip-address \
             --query 'Instances[0].InstanceId' \
             --output text)
-
           echo "Instance ID: $INSTANCE_ID"
-          echo "::set-output name=INSTANCE_ID::$INSTANCE_ID"
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
-          # Wait for the instance to be ready
           echo "Waiting for the instance to reach 'running' state..."
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
           echo "Instance is now in 'running' state."
 
-          # Wait for status checks
-          echo "Waiting for the instance to pass status checks..."
-          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
-          echo "Instance passed all status checks and is ready."
+          echo "Waiting for the instance to pass at least two status checks..."
+          while true; do
+            SYSTEM_STATUS=$(aws ec2 describe-instance-status \
+              --instance-id $INSTANCE_ID \
+              --query 'InstanceStatuses[0].SystemStatus.Status' \
+              --output text)
+            INSTANCE_STATUS=$(aws ec2 describe-instance-status \
+              --instance-id $INSTANCE_ID \
+              --query 'InstanceStatuses[0].InstanceStatus.Status' \
+              --output text)
+            if [ "$SYSTEM_STATUS" = "ok" ] && [ "$INSTANCE_STATUS" = "ok" ]; then
+              echo "Instance passed two status checks and is ready."
+              break
+            fi
+            echo "Waiting for status checks to pass..."
+            sleep 5
+          done
 
       # Part 5: Deploy to Staging - Step 2: Install Docker
       - name: Install Docker
@@ -109,6 +109,7 @@ jobs:
             --region ap-south-1 \
             --query "Command.CommandId" \
             --output text)
+          echo "Command ID: $COMMAND_ID"
 
           echo "Waiting for the Docker installation command to complete..."
           sleep 10
@@ -118,8 +119,7 @@ jobs:
             --instance-id "$INSTANCE_ID" \
             --query "StandardOutputContent" \
             --output text)
-
-          echo "Docker version installed on the instance:"
+          echo "Docker installation output:"
           echo "$OUTPUT"
 
       # Part 6: Deploy to Staging - Step 3: Terminate Instance
