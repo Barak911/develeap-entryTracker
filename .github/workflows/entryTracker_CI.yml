@@ -95,15 +95,7 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker and Docker Compose" \
-            --parameters commands=[
-              "yum update -y",
-              "yum install -y docker",
-              "systemctl start docker",
-              "curl -L 'https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64' -o /usr/local/bin/docker-compose",
-              "chmod +x /usr/local/bin/docker-compose",
-              "docker compose version",
-              "docker --version"
-            ] \
+            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker compose version","docker --version"]}' \
             --region ap-south-1
 
           # Terminate EC2 instance
