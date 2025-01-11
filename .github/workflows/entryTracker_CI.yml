@@ -59,7 +59,7 @@ jobs:
         run: |
           pkill -f app.py || true
 
-      # Part 4: Run E2E Tests
+      # Part 4: Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -67,7 +67,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      - name: Deploy to Staging
+      # Part 5: Deploy and Run E2E Tests
+      - name: Deploy and Run E2E Tests
         run: |
           # Launch EC2 instance
           echo "Launching EC2 instance..."
@@ -88,59 +89,48 @@ jobs:
           echo "Waiting for the instance to be ready..."
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
-
           # Install and start Docker
           echo "Configuring Docker on EC2 instance..."
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker and Docker Compose" \
-            --parameters commands=[
-              "yum update -y",
-              "yum install -y docker",
-              "systemctl start docker",
-              "curl -L 'https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64' -o /usr/local/bin/docker-compose",
-              "chmod +x /usr/local/bin/docker-compose",
-              "docker compose version"
-            ] \
+            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker compose version"]}' \
             --region ap-south-1
-      - name: Build and Staging Tests
-        run: |
-          # Execute E2E test script
-          echo "Executing E2E test script..."
+
+          # Verify Docker installation on the instance
+          echo "Verifying Docker installation..."
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters commands=[
-              "cleanup() {",
-              "  echo 'Cleaning up Docker Compose stack...'",
-              "  docker compose down",
-              "}",
-              "trap cleanup EXIT",
-              "echo 'Starting Docker Compose...'",
-              "docker compose up -d",
-              "echo 'Waiting for the application to be ready...'",
-              "MAX_RETRIES=15",
-              "RETRY_INTERVAL=1",
-              "for i in $(seq 1 $MAX_RETRIES); do",
-              "  if curl -s http://localhost:5000 > /dev/null; then",
-              "    echo 'Application is up and running!'",
-              "    break",
-              "  fi",
-              "  echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'",
-              "  sleep $RETRY_INTERVAL",
-              "done",
-              "if ! curl -s http://localhost:5000 > /dev/null; then",
-              "  echo 'Error: Application did not start within the expected time.'",
-              "  docker compose logs",
-              "  exit 1",
-              "fi"
-            ] \
+            --comment "Check Docker Installation" \
+            --parameters '{"commands":["docker --version"]}' \
             --region ap-south-1
 
+          echo "Waiting for Docker verification to complete..."
+          sleep 10
+
+          INSTALL_STATUS=$(aws ssm get-command-invocation \
+            --command-id $(aws ssm list-command-invocations --details --query 'CommandInvocations[0].CommandId' --output text) \
+            --instance-id "$INSTANCE_ID" \
+            --query 'Status' --output text)
+
+          if [ "$INSTALL_STATUS" != "Success" ]; then
+            echo "Error: Docker installation did not complete successfully."
+            exit 1
+          fi
+
+          echo "Docker installation verified successfully!"
+
+          # Run E2E tests inline
+          echo "Executing E2E tests inline..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters '{"commands":["docker compose up -d","echo \"Waiting for the application to be ready...\"","MAX_RETRIES=15","RETRY_INTERVAL=1","for i in $(seq 1 $MAX_RETRIES); do","  if curl -s http://localhost:5000 > /dev/null; then","    echo \"Application is up and running!\"","    break","  fi","  echo \"Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...\"","  sleep $RETRY_INTERVAL","done","if ! curl -s http://localhost:5000 > /dev/null; then","  echo \"Error: Application did not start within the expected time.\"","  docker compose logs","  exit 1","fi"]}' \
+            --region ap-south-1
 
           # Terminate EC2 instance
           echo "Terminating EC2 instance..."
           aws ec2 terminate-instances --instance-ids $INSTANCE_ID
           aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
-          
