@@ -133,10 +133,3 @@ jobs:
           echo "Docker installation output:"
           echo "$OUTPUT"
 
-      # Part 6: Deploy to Staging - Step 3: Terminate Instance
-      - name: Terminate Instance
-        run: |
-          echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region ap-south-1
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region ap-south-1
-          echo "Instance terminated successfully."
