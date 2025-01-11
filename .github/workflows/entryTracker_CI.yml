@@ -66,7 +66,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-
+          
       - name: Deploy to Staging
         run: |
           # Launch EC2 instance
@@ -84,10 +84,15 @@ jobs:
 
           echo "Instance ID: $INSTANCE_ID"
 
-          # Wait for the instance to be ready
-          echo "Waiting for the instance to be ready..."
+          # Wait for the instance to reach 'running' state
+          echo "Waiting for the instance to reach 'running' state..."
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          echo "Instance is now in 'running' state."
 
+          # Wait for the instance to pass status checks
+          echo "Waiting for the instance to pass status checks..."
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+          echo "Instance passed all status checks and is ready."
 
           # Install and start Docker
           echo "Configuring Docker on EC2 instance..."
@@ -95,11 +100,10 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker and Docker Compose" \
-            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker compose version","docker --version"]}' \
+            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker compose version"]}' \
             --region ap-south-1
 
           # Terminate EC2 instance
           echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
-          
+          aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
+          aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID"
