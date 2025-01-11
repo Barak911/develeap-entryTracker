@@ -73,49 +73,34 @@ jobs:
             --image-id ami-053b12d3152c0cc71 \
             --count 1 \
             --instance-type t3a.small \
+            --key-name barak-SSH-2 \
             --iam-instance-profile Name=barak_CICD_AutomationRole \
             --security-group-ids sg-09fae402d9e4456db \
             --subnet-id subnet-0535524901695176d \
             --associate-public-ip-address \
-            --region ap-south-1 \
             --query 'Instances[0].InstanceId' \
             --output text)
           echo "Instance ID: $INSTANCE_ID"
-          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
           echo "Waiting for the instance to reach 'running' state..."
-          aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region ap-south-1
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
           echo "Instance is now in 'running' state."
 
-          echo "Waiting for the instance to pass at least two status checks..."
-          while true; do
-            SYSTEM_STATUS=$(aws ec2 describe-instance-status \
-              --instance-id $INSTANCE_ID \
-              --region ap-south-1 \
-              --query 'InstanceStatuses[0].SystemStatus.Status' \
-              --output text)
-            INSTANCE_STATUS=$(aws ec2 describe-instance-status \
-              --instance-id $INSTANCE_ID \
-              --region ap-south-1 \
-              --query 'InstanceStatuses[0].InstanceStatus.Status' \
-              --output text)
-            if [ "$SYSTEM_STATUS" = "ok" ] && [ "$INSTANCE_STATUS" = "ok" ]; then
-              echo "Instance passed two status checks and is ready."
-              break
-            fi
-            echo "Waiting for status checks to pass..."
-            sleep 5
-          done
+          echo "Waiting for the instance to pass status checks..."
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+          echo "Instance passed all status checks and is ready."
 
       # Part 5: Deploy to Staging - Step 2: Install Docker
       - name: Install Docker
         run: |
+          INSTANCE_ID=${{ steps.deploy_instance.outputs.INSTANCE_ID }}
           echo "Configuring Docker on EC2 instance..."
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker and Docker Compose" \
-            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker --version","docker compose version"]}' \
+            --parameters '{"commands":["yum update -y","yum install -y docker","systemctl start docker","curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","chmod +x /usr/local/bin/docker-compose","docker compose version"]}' \
             --region ap-south-1 \
             --query "Command.CommandId" \
             --output text)
@@ -127,7 +112,6 @@ jobs:
           OUTPUT=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
-            --region ap-south-1 \
             --query "StandardOutputContent" \
             --output text)
           echo "Docker installation output:"
