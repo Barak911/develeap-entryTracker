@@ -59,7 +59,7 @@ jobs:
         run: |
           pkill -f app.py || true
 
-      # Part 4: Configure AWS Credentials
+      # Part 4: Run E2E Tests
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -67,8 +67,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      # Part 5: Deploy to Staging and Run E2E Tests
-      - name: Deploy and Run E2E Tests
+      - name: Deploy to Staging
         run: |
           # Launch EC2 instance
           echo "Launching EC2 instance..."
@@ -89,6 +88,7 @@ jobs:
           echo "Waiting for the instance to be ready..."
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
+
           # Install and start Docker
           echo "Configuring Docker on EC2 instance..."
           aws ssm send-command \
@@ -104,25 +104,23 @@ jobs:
               "docker compose version"
             ] \
             --region ap-south-1
-
-          # Inline E2E Test Script
-          echo "Uploading and executing E2E test script on EC2..."
+      - name: Build and Staging Tests
+        run: |
+          # Execute E2E test script
+          echo "Executing E2E test script..."
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
               "cat << 'EOT' > /home/ec2-user/e2e_test.sh",
               "#!/bin/bash",
-              "",
               "cleanup() {",
               "  echo 'Cleaning up Docker Compose stack...'",
               "  docker compose down",
               "}",
               "trap cleanup EXIT",
-              "",
               "echo 'Starting Docker Compose...'",
               "docker compose up -d",
-              "",
               "echo 'Waiting for the application to be ready...'",
               "MAX_RETRIES=15",
               "RETRY_INTERVAL=1",
@@ -134,7 +132,6 @@ jobs:
               "  echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'",
               "  sleep $RETRY_INTERVAL",
               "done",
-              "",
               "if ! curl -s http://localhost:5000 > /dev/null; then",
               "  echo 'Error: Application did not start within the expected time.'",
               "  docker compose logs",
@@ -146,7 +143,8 @@ jobs:
             ] \
             --region ap-south-1
 
+
           # Terminate EC2 instance
           echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
-          aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID"
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
