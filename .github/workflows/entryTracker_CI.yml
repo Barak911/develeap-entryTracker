@@ -69,23 +69,26 @@ jobs:
             --security-group-ids sg-09fae402d9e4456db \
             --subnet-id subnet-0535524901695176d \
             --associate-public-ip-address \
+            --region ap-south-1 \
             --query 'Instances[0].InstanceId' \
             --output text)
           echo "Instance ID: $INSTANCE_ID"
           echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
           echo "Waiting for the instance to reach 'running' state..."
-          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region ap-south-1
           echo "Instance is now in 'running' state."
 
           echo "Waiting for the instance to pass at least two status checks..."
           while true; do
             SYSTEM_STATUS=$(aws ec2 describe-instance-status \
               --instance-id $INSTANCE_ID \
+              --region ap-south-1 \
               --query 'InstanceStatuses[0].SystemStatus.Status' \
               --output text)
             INSTANCE_STATUS=$(aws ec2 describe-instance-status \
               --instance-id $INSTANCE_ID \
+              --region ap-south-1 \
               --query 'InstanceStatuses[0].InstanceStatus.Status' \
               --output text)
             if [ "$SYSTEM_STATUS" = "ok" ] && [ "$INSTANCE_STATUS" = "ok" ]; then
@@ -117,6 +120,7 @@ jobs:
           OUTPUT=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
+            --region ap-south-1 \
             --query "StandardOutputContent" \
             --output text)
           echo "Docker installation output:"
@@ -127,6 +131,6 @@ jobs:
         run: |
           INSTANCE_ID=${{ steps.deploy_instance.outputs.INSTANCE_ID }}
           echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region ap-south-1
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region ap-south-1
           echo "Instance terminated successfully."
