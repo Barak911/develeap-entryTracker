@@ -1,6 +1,5 @@
 name: entryTracker_CI-CD
 
-
 on:
   push:
     branches: [ "main" ]
@@ -11,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  CICD:
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +59,7 @@ jobs:
         run: |
           pkill -f app.py || true
 
-      # Part 4: Run E2E Tests
+      # Part 4: Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -68,6 +67,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
+      # Part 5: Deploy to Staging and Run E2E Tests
       - name: Deploy and Run E2E Tests
         run: |
           # Launch EC2 instance
@@ -105,13 +105,42 @@ jobs:
             ] \
             --region ap-south-1
 
-          # Download and execute E2E test script
-          echo "Downloading and executing E2E test script..."
+          # Inline E2E Test Script
+          echo "Uploading and executing E2E test script on EC2..."
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "aws s3 cp s3://entytracker-cicd/e2e_test.sh /home/ec2-user/e2e_test.sh",
+              "cat << 'EOT' > /home/ec2-user/e2e_test.sh",
+              "#!/bin/bash",
+              "",
+              "cleanup() {",
+              "  echo 'Cleaning up Docker Compose stack...'",
+              "  docker compose down",
+              "}",
+              "trap cleanup EXIT",
+              "",
+              "echo 'Starting Docker Compose...'",
+              "docker compose up -d",
+              "",
+              "echo 'Waiting for the application to be ready...'",
+              "MAX_RETRIES=15",
+              "RETRY_INTERVAL=1",
+              "for i in $(seq 1 $MAX_RETRIES); do",
+              "  if curl -s http://localhost:5000 > /dev/null; then",
+              "    echo 'Application is up and running!'",
+              "    break",
+              "  fi",
+              "  echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'",
+              "  sleep $RETRY_INTERVAL",
+              "done",
+              "",
+              "if ! curl -s http://localhost:5000 > /dev/null; then",
+              "  echo 'Error: Application did not start within the expected time.'",
+              "  docker compose logs",
+              "  exit 1",
+              "fi",
+              "EOT",
               "chmod +x /home/ec2-user/e2e_test.sh",
               "/home/ec2-user/e2e_test.sh"
             ] \
@@ -119,5 +148,5 @@ jobs:
 
           # Terminate EC2 instance
           echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+          aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
+          aws ec2 wait instance-terminated --instance-ids "$INSTANCE_ID"
