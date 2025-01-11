@@ -112,8 +112,6 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "cat << 'EOT' > /home/ec2-user/e2e_test.sh",
-              "#!/bin/bash",
               "cleanup() {",
               "  echo 'Cleaning up Docker Compose stack...'",
               "  docker compose down",
@@ -136,10 +134,7 @@ jobs:
               "  echo 'Error: Application did not start within the expected time.'",
               "  docker compose logs",
               "  exit 1",
-              "fi",
-              "EOT",
-              "chmod +x /home/ec2-user/e2e_test.sh",
-              "/home/ec2-user/e2e_test.sh"
+              "fi"
             ] \
             --region ap-south-1
 
@@ -148,3 +143,4 @@ jobs:
           echo "Terminating EC2 instance..."
           aws ec2 terminate-instances --instance-ids $INSTANCE_ID
           aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+          
