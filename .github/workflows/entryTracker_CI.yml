@@ -1,4 +1,4 @@
-name: entryTracker_CI-CD
+name: entryTracker CI\CD
 
 on:
   push:
@@ -8,6 +8,14 @@ on:
 
 permissions:
   contents: read
+
+env:
+  IAM_INSTANCE_PROFILE: barak_CICD_AutomationRole
+  AWS_REGION: ap-south-1
+  INSTANCE_TYPE: t3a.small
+  KEY_NAME: barak-SSH-2
+  SECURITY_GROUP_ID: sg-09fae402d9e4456db
+  SUBNET_ID: subnet-0535524901695176d
 
 jobs:
   CICD:
@@ -62,7 +70,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
 
       # Part 4: Deploy to Staging - Step 1: Deploy Instance
       - name: Deploy Instance
@@ -72,32 +80,32 @@ jobs:
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ami-053b12d3152c0cc71 \
             --count 1 \
-            --instance-type t3a.small \
-            --key-name barak-SSH-2 \
-            --iam-instance-profile Name=barak_CICD_AutomationRole \
-            --security-group-ids sg-09fae402d9e4456db \
-            --subnet-id subnet-0535524901695176d \
+            --instance-type $INSTANCE_TYPE \
+            --key-name $KEY_NAME \
+            --iam-instance-profile Name=$IAM_INSTANCE_PROFILE \
+            --security-group-ids $SECURITY_GROUP_ID \
+            --subnet-id $SUBNET_ID \
             --associate-public-ip-address \
-            --region ap-south-1 \
+            --region $AWS_REGION \
             --query 'Instances[0].InstanceId' \
             --output text)
           echo "Instance ID: $INSTANCE_ID"
           echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
           echo "Waiting for the instance to reach 'running' state..."
-          aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region ap-south-1
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region $AWS_REGION
           echo "Instance is now in 'running' state."
 
           echo "Waiting for the instance to pass at least two status checks..."
           while true; do
             SYSTEM_STATUS=$(aws ec2 describe-instance-status \
               --instance-id $INSTANCE_ID \
-              --region ap-south-1 \
+              --region $AWS_REGION \
               --query 'InstanceStatuses[0].SystemStatus.Status' \
               --output text)
             INSTANCE_STATUS=$(aws ec2 describe-instance-status \
               --instance-id $INSTANCE_ID \
-              --region ap-south-1 \
+              --region $AWS_REGION \
               --query 'InstanceStatuses[0].InstanceStatus.Status' \
               --output text)
             if [ "$SYSTEM_STATUS" = "ok" ] && [ "$INSTANCE_STATUS" = "ok" ]; then
@@ -117,7 +125,7 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker and Docker Compose" \
             --parameters '{"commands":["sudo apt-get update -y","sudo apt-get install -y docker.io","sudo systemctl start docker","sudo curl -L https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose","sudo chmod +x /usr/local/bin/docker-compose","docker --version","docker compose version"]}' \
-            --region ap-south-1 \
+            --region $AWS_REGION \
             --query "Command.CommandId" \
             --output text)
           echo "Command ID: $COMMAND_ID"
@@ -127,7 +135,7 @@ jobs:
             STATUS=$(aws ssm list-command-invocations \
               --command-id "$COMMAND_ID" \
               --details \
-              --region ap-south-1 \
+              --region $AWS_REGION \
               --query "CommandInvocations[0].Status" \
               --output text)
             echo "Command Status: $STATUS"
@@ -143,7 +151,7 @@ jobs:
           OUTPUT=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
-            --region ap-south-1 \
+            --region $AWS_REGION \
             --query "StandardOutputContent" \
             --output text)
           echo "Docker installation output:"
