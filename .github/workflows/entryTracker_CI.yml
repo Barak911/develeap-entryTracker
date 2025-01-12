@@ -117,42 +117,19 @@ jobs:
           done
 
       # Part 5: Deploy to Staging - Step 2: Install Docker
-      - name: Install Docker
+      - name: Install Docker via SSM
         run: |
-          echo "Configuring Docker on EC2 instance..."
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
+            --instance-ids ${{ env.INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
-            --comment "Install Docker and Docker Compose" \
-            --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -a -G docker ec2-user","sudo systemctl start docker","docker --version"]}' \
-            --region $AWS_REGION \
+            --comment "Install Docker" \
+            --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -a -G docker ec2-user","docker --version"]}' \
             --query "Command.CommandId" \
             --output text)
-          echo "Command ID: $COMMAND_ID"
+          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
 
-          echo "Waiting for the Docker installation command to complete..."
-          while true; do
-            STATUS=$(aws ssm list-command-invocations \
-              --command-id "$COMMAND_ID" \
-              --details \
-              --region $AWS_REGION \
-              --query "CommandInvocations[0].Status" \
-              --output text)
-            echo "Command Status: $STATUS"
-            if [ "$STATUS" = "Success" ]; then
-              break
-            elif [ "$STATUS" = "Failed" ]; then
-              echo "SSM Command failed!"
-              exit 1
-            fi
-            sleep 5
-          done
-
-          OUTPUT=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --region $AWS_REGION \
-            --query "StandardOutputContent" \
-            --output text)
-          echo "Docker installation output:"
-          echo "$OUTPUT"
+      - name: Wait for SSM command to complete
+        run: |
+          aws ssm wait command-executed \
+            --command-id ${{ env.COMMAND_ID }} \
+            --instance-id ${{ env.INSTANCE_ID }}
