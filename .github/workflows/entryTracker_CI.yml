@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+    --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -aG docker ec2-user"]}' \
 
 permissions:
   contents: read
@@ -123,13 +124,36 @@ jobs:
             --instance-ids ${{ env.INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --comment "Install Docker" \
-            --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -a -G docker ec2-user","docker --version"]}' \
+            --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -aG docker ec2-user"]}' \
             --query "Command.CommandId" \
             --output text)
           echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
 
-      - name: Wait for SSM command to complete
+      - name: Docker compose up and tests
         run: |
-          aws ssm wait command-executed \
-            --command-id ${{ env.COMMAND_ID }} \
-            --instance-id ${{ env.INSTANCE_ID }}
+          # Execute E2E test script
+          echo "Executing E2E test script..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "echo 'Starting Docker Compose...'",
+              "docker compose up -d",
+              "echo 'Waiting for the application to be ready...'",
+              "MAX_RETRIES=15",
+              "RETRY_INTERVAL=1",
+              "for i in $(seq 1 $MAX_RETRIES); do",
+              "  if curl -s http://localhost:5000 > /dev/null; then",
+              "    echo 'Application is up and running!'",
+              "    break",
+              "  fi",
+              "  echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'",
+              "  sleep $RETRY_INTERVAL",
+              "done",
+              "if ! curl -s http://localhost:5000 > /dev/null; then",
+              "  echo 'Error: Application did not start within the expected time.'",
+              "  docker compose logs",
+              "  exit 1",
+              "fi"
+            ] \
+            --region ap-south-1
