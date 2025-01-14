@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
 
-env:
+#env:
   #IAM_INSTANCE_PROFILE: barak_CICD_AutomationRole
   #REGION: ap-south-1
   #INSTANCE_TYPE: t3a.small
