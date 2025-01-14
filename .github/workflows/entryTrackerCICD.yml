@@ -12,6 +12,7 @@ env:
   #KEY_NAME: barak-SSH-2
   #SECURITY_GROUP_ID: sg-09fae402d9e4456db
   #SUBNET_ID: subnet-0535524901695176d
+  
 
 jobs:
   build:
