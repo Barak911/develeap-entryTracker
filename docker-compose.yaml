@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   web:
-    build:
-      context: ./
-      dockerfile: Dockerfile
+    build: .
     container_name: flask-app
     environment:
       - DB_HOST=${DB_HOST}    # change this when replacing MySQL contianer with another database
