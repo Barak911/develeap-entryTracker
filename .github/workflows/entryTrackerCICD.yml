@@ -64,66 +64,66 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
       steps: 
-      - name: Checkout App
-        uses: actions/checkout@v2
-
-      # Configure AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.REGION }}
-
-      # Download .env from S3
-      - name: Download .env file from S3
-        run: |
-          aws s3 cp s3://entytracker-cicd/.env .
-
-      # Load environment variables
-      - name: Load environment variables
-        run: |
-          set -a
-          source .env
-          set +a
-
-      # Deploy to Staging: Deploy Instance
-      - name: Make scripts executable
-        run: |
-          sed -i 's/\r$//' scripts/run-instances.sh
-          sed -i 's/\r$//' scripts/user-data.sh
-          chmod +x scripts/run-instances.sh
-      
-      - name: Launch EC2 and wait (scipts will install docker any run docker compose)
-        run: bash scripts/run-instances.sh -u scripts/user-data.sh
-
-      # Deploy to Staging: Terminate Instance
-      - name: Terminate Instance
-        run: |
-          echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
-          echo "Instance terminated successfully."
-
-    - name: Attach IAM Role to EC2
-      run: |
-        aws ec2 associate-iam-instance-profile \
-          --instance-id ${{ env.INSTANCE_ID }} \
-          --iam-instance-profile Name=${{ env.IAM_ROLE_NAME }}
-          
-    - name: Install SSH key
-      uses: shimataro/ssh-key-action@v2
-      with:
-        key: ${{ secrets.EC2_PRI_KEY }}
-        known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
+        - name: Checkout App
+          uses: actions/checkout@v2
+  
+        # Configure AWS Credentials
+        - name: Configure AWS Credentials
+          uses: aws-actions/configure-aws-credentials@v2
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ env.REGION }}
+  
+        # Download .env from S3
+        - name: Download .env file from S3
+          run: |
+            aws s3 cp s3://entytracker-cicd/.env .
+  
+        # Load environment variables
+        - name: Load environment variables
+          run: |
+            set -a
+            source .env
+            set +a
+  
+        # Deploy to Staging: Deploy Instance
+        - name: Make scripts executable
+          run: |
+            sed -i 's/\r$//' scripts/run-instances.sh
+            sed -i 's/\r$//' scripts/user-data.sh
+            chmod +x scripts/run-instances.sh
         
-    - name: Adding Known Hosts
-      run: ssh-keyscan -H ${{ env.PUBLIC_IP }} >> ~/.ssh/known_hosts
+        - name: Launch EC2 and wait (scipts will install docker any run docker compose)
+          run: bash scripts/run-instances.sh -u scripts/user-data.sh
+  
+        # Deploy to Staging: Terminate Instance
+        - name: Terminate Instance
+          run: |
+            echo "Terminating EC2 instance..."
+            aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
+            aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
+            echo "Instance terminated successfully."
+  
+      - name: Attach IAM Role to EC2
+        run: |
+          aws ec2 associate-iam-instance-profile \
+            --instance-id ${{ env.INSTANCE_ID }} \
+            --iam-instance-profile Name=${{ env.IAM_ROLE_NAME }}
+            
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.EC2_PRI_KEY }}
+          known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
           
-    - name: Deploy with SSH
-      run: |
-        ssh ubuntu@${{ env.PUBLIC_IP }} '
-            cd /home/ubuntu/workspace/entryTracker_CICD && \
-            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 779846827025.dkr.ecr.ap-south-1.amazonaws.com && \
-            docker compose up -d
-        '
+      - name: Adding Known Hosts
+        run: ssh-keyscan -H ${{ env.PUBLIC_IP }} >> ~/.ssh/known_hosts
+            
+      - name: Deploy with SSH
+        run: |
+          ssh ubuntu@${{ env.PUBLIC_IP }} '
+              cd /home/ubuntu/workspace/entryTracker_CICD && \
+              aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 779846827025.dkr.ecr.ap-south-1.amazonaws.com && \
+              docker compose up -d
+          '
