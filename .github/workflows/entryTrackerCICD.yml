@@ -4,9 +4,9 @@ on:
   push:
     branches: [ "main" ]
 
-#env:
+env:
+  REGION: ap-south-1
   #IAM_INSTANCE_PROFILE: barak_CICD_AutomationRole
-  #REGION: ap-south-1
   #INSTANCE_TYPE: t3a.small
   #AMI_ID: ami-053b12d3152c0cc71
   #KEY_NAME: barak-SSH-2
