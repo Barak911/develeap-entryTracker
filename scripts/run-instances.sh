@@ -1,18 +1,28 @@
 #!/bin/bash
 
+# Ensure the .env file exists
+if [ ! -f .env ]; then
+  echo "Error: .env file not found."
+  exit 1
+fi
 
-INSTANCE_TYPE="t3a.small"
-AMI_ID="ami-053b12d3152c0cc71"  
-IAM_INSTANCE_PROFILE="barak_CICD_AutomationRole"
-KEY_NAME="barak-SSH-2"
-SECURITY_GROUP="sg-09fae402d9e4456db"
-SUBNET_ID="subnet-0535524901695176d"
-INSTANCE_NAME="GithubActionInstance"
-USER_DATA_FILE=""
-REGION="ap-south-1"
-VOLUME_SIZE="8"
-VOLUME_TYPE="gp3"
+# Load variables from .env
+set -a # Automatically export all variables
+source .env
+set +a # Disable automatic export
 
+
+#INSTANCE_TYPE="t3a.small"
+#AMI_ID="ami-053b12d3152c0cc71"  
+#IAM_INSTANCE_PROFILE="barak_CICD_AutomationRole"
+#KEY_NAME="barak-SSH-2"
+#SECURITY_GROUP="sg-09fae402d9e4456db"
+#SUBNET_ID="subnet-0535524901695176d"
+#INSTANCE_NAME="GithubActionInstance"
+#USER_DATA_FILE=""
+#REGION="ap-south-1"
+#VOLUME_SIZE="8"
+#VOLUME_TYPE="gp3"
 
 
 
