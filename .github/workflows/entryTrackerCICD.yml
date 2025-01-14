@@ -1,0 +1,276 @@
+name: entryTracker CI\CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  #IAM_INSTANCE_PROFILE: barak_CICD_AutomationRole
+  #REGION: ap-south-1
+  #INSTANCE_TYPE: t3a.small
+  #AMI_ID: ami-053b12d3152c0cc71
+  #KEY_NAME: barak-SSH-2
+  #SECURITY_GROUP_ID: sg-09fae402d9e4456db
+  #SUBNET_ID: subnet-0535524901695176d
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Part 1: Pull the application source code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Part 2: Build the application: Set up Python environment
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Run the application in the background
+      - name: Start app.py
+        run: |
+          nohup python app.py &
+
+      # Part 3: Run unit tests
+      - name: Test the application with curl
+        run: |
+          echo "Testing the application..."
+          RESPONSE=$(curl -s -o response.txt -w "%{http_code}" http://localhost:5000)
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "Error: Expected HTTP 200 but got $RESPONSE"
+            cat response.txt
+            exit 1
+          fi
+          echo "Test successful! Application returned HTTP 200."
+          echo "Response from the application:"
+          cat response.txt
+          exit 0
+
+      # Stop the app
+      - name: Cleanup
+        run: |
+          pkill -f app.py || true
+
+  package-and-E2E:
+    needs: build
+    runs-on: ubuntu-latest
+      steps: 
+      - name: Checkout App
+        uses: actions/checkout@v2
+
+      # Configure AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
+
+      # Download .env from S3
+      - name: Download .env file from S3
+        run: |
+          aws s3 cp s3://entytracker-cicd/.env .
+
+      # Load environment variables
+      - name: Load environment variables
+        run: |
+          set -a
+          source .env
+          set +a
+
+      # Deploy to Staging: Deploy Instance
+      - name: Make scripts executable
+        run: |
+          sed -i 's/\r$//' scripts/run-instances.sh
+          sed -i 's/\r$//' scripts/user-data.sh
+          chmod +x scripts/run-instances.sh
+      
+      - name: Launch EC2 and wait (scipts will install docker any run docker compose)
+        run: bash scripts/run-instances.sh -u scripts/user-data.sh
+
+      # Deploy to Staging: Terminate Instance
+      - name: Terminate Instance
+        run: |
+          echo "Terminating EC2 instance..."
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
+          echo "Instance terminated successfully."
+
+    - name: Attach IAM Role to EC2
+      run: |
+        aws ec2 associate-iam-instance-profile \
+          --instance-id ${{ env.INSTANCE_ID }} \
+          --iam-instance-profile Name=${{ env.IAM_ROLE_NAME }}
+          
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.EC2_PRI_KEY }}
+        known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
+        
+    - name: Adding Known Hosts
+      run: ssh-keyscan -H ${{ env.PUBLIC_IP }} >> ~/.ssh/known_hosts
+          
+    - name: Deploy with SSH
+      run: |
+        ssh ubuntu@${{ env.PUBLIC_IP }} '
+            cd /home/ubuntu/workspace/entryTracker_CICD && \
+            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 779846827025.dkr.ecr.ap-south-1.amazonaws.com && \
+            docker compose up -d
+        '
+
+
+
+
+##############################################
+      - name: Deploy to Staging
+        run: |
+          # Launch EC2 instance
+          echo "Launching EC2 instance..."
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ami-053b12d3152c0cc71 \
+            --count 1 \
+            --instance-type t3a.small \
+            --iam-instance-profile Name=barak_CICD_AutomationRole \
+            --security-group-ids sg-09fae402d9e4456db \
+            --subnet-id subnet-0535524901695176d \
+            --associate-public-ip-address \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          echo "Instance ID: $INSTANCE_ID"
+
+          # Wait for the instance to be ready
+          echo "Waiting for the instance to be ready..."
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+
+          # Install and start Docker
+          echo "Configuring Docker on EC2 instance..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Install Docker and Docker Compose" \
+            --parameters commands=[
+              "yum update -y",
+              "yum install -y docker",
+              "systemctl start docker",
+              "curl -L 'https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64' -o /usr/local/bin/docker-compose",
+              "chmod +x /usr/local/bin/docker-compose",
+              "docker compose version",
+              "docker --version"
+            ] \
+            --region ap-south-1
+      - name: Build and Staging Tests
+        run: |
+          # Execute E2E test script
+          echo "Executing E2E test script..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "cleanup() {",
+              "  echo 'Cleaning up Docker Compose stack...'",
+              "  docker compose down",
+              "}",
+              "trap cleanup EXIT",
+              "echo 'Starting Docker Compose...'",
+              "docker compose up -d",
+              "echo 'Waiting for the application to be ready...'",
+              "MAX_RETRIES=15",
+              "RETRY_INTERVAL=1",
+              "for i in $(seq 1 $MAX_RETRIES); do",
+              "  if curl -s http://localhost:5000 > /dev/null; then",
+              "    echo 'Application is up and running!'",
+              "    break",
+              "  fi",
+              "  echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'",
+              "  sleep $RETRY_INTERVAL",
+              "done",
+              "if ! curl -s http://localhost:5000 > /dev/null; then",
+              "  echo 'Error: Application did not start within the expected time.'",
+              "  docker compose logs",
+              "  exit 1",
+              "fi"
+            ] \
+            --region ap-south-1
+
+
+          # Terminate EC2 instance
+          echo "Terminating EC2 instance..."
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+
+
+
+######################################
+
+
+      - name: Deploy Instance
+        run: |
+          echo "Launching EC2 instance..."
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id $AMI_ID \
+            --count 1 \
+            --instance-type $INSTANCE_TYPE \
+            --key-name $KEY_NAME \
+            --iam-instance-profile Name=$IAM_INSTANCE_PROFILE \
+            --security-group-ids $SECURITY_GROUP_ID \
+            --subnet-id $SUBNET_ID \
+            --associate-public-ip-address \
+            --region $REGION \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+          echo "Instance ID: $INSTANCE_ID"
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+          echo "Waiting for the instance to reach 'running' state..."
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region $REGION
+          echo "Instance is now in 'running' state."
+
+          echo "Waiting for the instance to pass at least two status checks..."
+          while true; do
+            SYSTEM_STATUS=$(aws ec2 describe-instance-status \
+              --instance-id $INSTANCE_ID \
+              --region $REGION \
+              --query 'InstanceStatuses[0].SystemStatus.Status' \
+              --output text)
+            INSTANCE_STATUS=$(aws ec2 describe-instance-status \
+              --instance-id $INSTANCE_ID \
+              --region $REGION \
+              --query 'InstanceStatuses[0].InstanceStatus.Status' \
+              --output text)
+            if [ "$SYSTEM_STATUS" = "ok" ] && [ "$INSTANCE_STATUS" = "ok" ]; then
+              echo "Instance passed two status checks and is ready."
+              break
+            fi
+            echo "Waiting for status checks to pass..."
+            sleep 5
+          done
+
+
+      # Part 5: Deploy to Staging - Step 2: Install Docker
+      - name: Install Docker via SSM
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ env.INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --comment "Install Docker" \
+            --parameters '{"commands":["sudo yum update -y","sudo amazon-linux-extras install docker -y","sudo service docker start","sudo usermod -a -G docker ec2-user","docker --version"]}' \
+            --query "Command.CommandId" \
+            --output text)
+          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
+
+      - name: Wait for SSM command to complete
+        run: |
+          aws ssm wait command-executed \
+            --command-id ${{ env.COMMAND_ID }} \
+            --instance-id ${{ env.INSTANCE_ID }}
