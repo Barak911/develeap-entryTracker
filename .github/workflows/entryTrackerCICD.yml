@@ -6,16 +6,10 @@ on:
 
 env:
   REGION: ap-south-1
-  #IAM_INSTANCE_PROFILE: barak_CICD_AutomationRole
-  #INSTANCE_TYPE: t3a.small
-  #AMI_ID: ami-053b12d3152c0cc71
-  #KEY_NAME: barak-SSH-2
-  #SECURITY_GROUP_ID: sg-09fae402d9e4456db
-  #SUBNET_ID: subnet-0535524901695176d
-  
+
 
 jobs:
-  build:
+  Build-and-Test:
     runs-on: ubuntu-latest
 
     steps:
@@ -63,7 +57,7 @@ jobs:
   E2E-Test-and-Deploy:
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps: 
       - name: Checkout App
         uses: actions/checkout@v2
@@ -74,7 +68,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.REGION }}
+          aws-region: $REGION
 
       # Download .env from S3
       - name: Download .env file from S3
@@ -95,15 +89,14 @@ jobs:
           sed -i 's/\r$//' scripts/user-data.sh
           chmod +x scripts/run-instances.sh
       
-      - name: Launch EC2 and wait (scipts will install docker any run docker compose)
+      - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/user-data.sh
 
       - name: Attach IAM Role to EC2
         run: |
-          echo "associating instance ID:${{ env.INSTANCE_ID }} with IAM Role: ${{ env.IAM_ROLE_NAME }}"
           aws ec2 associate-iam-instance-profile \
             --instance-id ${{ env.INSTANCE_ID }} \
-            --iam-instance-profile Name=${{ env.IAM_ROLE_NAME }}
+            --iam-instance-profile Name=${{ env.IAM_INSTANCE_PROFILE }}
             
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
@@ -118,13 +111,6 @@ jobs:
         run: |
           ssh ubuntu@${{ env.PUBLIC_IP }} '
               cd /home/ubuntu/workspace/entryTracker_CICD && \
-              aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${{ env.AMI_ID }}.dkr.ecr.$REGION.amazonaws.com && \
+              aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin 796973518097.dkr.ecr.$REGION.amazonaws.com && \
               docker compose up -d
           '
-          
-      - name: Terminate Instance
-        run: |
-          echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
-          echo "Instance terminated successfully."
