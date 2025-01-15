@@ -64,10 +64,17 @@ else
 fi
 
 # Copy and overwrite .env to target directory
-echo "Copying .env to the target directory..."
+echo "Copying .env to the /home/ubuntu/workspace/entryTracker_CICD directory..."
 mkdir -p /home/ubuntu/workspace/entryTracker_CICD
 cp -f /home/ubuntu/workspace/.env /home/ubuntu/workspace/entryTracker_CICD/.env
 
 # Make the .env file readable
 chmod 600 /home/ubuntu/workspace/entryTracker_CICD/.env
 
+# Load environment variables
+echo "Loading environment variables from .env..."
+export $(grep -v '^#' /home/ubuntu/workspace/entryTracker_CICD/.env | xargs)
+
+# Verify environment variables
+echo "Environment variables loaded:"
+env
