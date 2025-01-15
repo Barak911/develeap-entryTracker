@@ -133,7 +133,7 @@ if [ ! -z "$EXISTING_INSTANCE" ]; then
 fi
 
 # Launch EC2 instance
-echo "Launching EC2 instance in region $(REGION)..."
+echo "Launching EC2 instance in region $REGION..."
 INSTANCE_ID=$(aws ec2 run-instances \
     --image-id "$AMI_ID" \
     --instance-type "$INSTANCE_TYPE" \
