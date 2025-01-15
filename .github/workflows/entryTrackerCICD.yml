@@ -108,6 +108,7 @@ jobs:
 
       - name: Attach IAM Role to EC2
         run: |
+          echo "associating instance ID:${{ env.INSTANCE_ID }} with IAM Role: ${{ env.IAM_ROLE_NAME }}"
           aws ec2 associate-iam-instance-profile \
             --instance-id ${{ env.INSTANCE_ID }} \
             --iam-instance-profile Name=${{ env.IAM_ROLE_NAME }}
@@ -125,6 +126,6 @@ jobs:
         run: |
           ssh ubuntu@${{ env.PUBLIC_IP }} '
               cd /home/ubuntu/workspace/entryTracker_CICD && \
-              aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 779846827025.dkr.ecr.ap-south-1.amazonaws.com && \
+              aws ecr get-login-password --region ${{ env.REGION }} | docker login --username AWS --password-stdin ${{ env.AMI_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com && \
               docker compose up -d
           '
