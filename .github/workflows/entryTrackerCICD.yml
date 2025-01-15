@@ -126,6 +126,6 @@ jobs:
         run: |
           ssh ubuntu@${{ env.PUBLIC_IP }} '
               cd /home/ubuntu/workspace/entryTracker_CICD && \
-              aws ecr get-login-password --region ${{ env.REGION }} | docker login --username AWS --password-stdin ${{ env.AMI_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com && \
+              aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${{ env.AMI_ID }}.dkr.ecr.$REGION.amazonaws.com && \
               docker compose up -d
           '
