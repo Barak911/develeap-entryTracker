@@ -76,11 +76,12 @@ jobs:
           aws s3 cp s3://entytracker-cicd/.env .
 
       # Load environment variables
-      - name: Load environment variables
-        run: |
-          set -a
-          source .env
-          set +a
+      - name: Load .env file
+        uses: aarcangeli/load-dotenv@v1
+        with:
+          path: '.'
+          filenames: '.env'
+          expand: true  
 
       # Deploy to Staging: Deploy Instance
       - name: Make scripts executable
