@@ -92,6 +92,12 @@ jobs:
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/user-data.sh
 
+      - name: Debug Environment Variables
+        run: |
+          echo "INSTANCE_ID=${{ env.INSTANCE_ID }}"
+          echo "IAM_INSTANCE_PROFILE=${{ env.IAM_INSTANCE_PROFILE }}"
+          echo "REGION=${{ env.REGION }}"
+
       - name: Attach IAM Role to EC2
         run: |
           echo "Associating IAM Instance Profile..."
@@ -99,6 +105,7 @@ jobs:
             --instance-id ${{ env.INSTANCE_ID }} \
             --iam-instance-profile Name=${{ env.IAM_INSTANCE_PROFILE }} \
             --region ${{ env.REGION }}
+
             
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
