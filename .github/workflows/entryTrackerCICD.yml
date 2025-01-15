@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 env:
-  REGION: ap-south-1
+  REGION: "ap-south-1"
 
 
 jobs:
