@@ -55,7 +55,7 @@ jobs:
           pkill -f app.py || true
 
   E2E-Test-and-Deploy:
-    needs: build
+    needs: Build-and-Test
     runs-on: ubuntu-latest
 
     steps: 
