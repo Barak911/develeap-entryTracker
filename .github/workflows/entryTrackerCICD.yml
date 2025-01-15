@@ -97,7 +97,7 @@ jobs:
           echo "Associating IAM Instance Profile..."
           aws ec2 associate-iam-instance-profile \
             --instance-id ${{ env.INSTANCE_ID }} \
-            --iam-instance-profile Name=${{ env.IAM_INSTANCE_PROFILE }}
+            --iam-instance-profile Name=${{ env.IAM_INSTANCE_PROFILE }} \
             --region ${{ env.REGION }}
             
       - name: Install SSH key
