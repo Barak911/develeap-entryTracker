@@ -60,7 +60,7 @@ jobs:
         run: |
           pkill -f app.py || true
 
-  package-and-E2E:
+  E2E-Test-and-Deploy:
     needs: build
     runs-on: ubuntu-latest
     
@@ -98,14 +98,6 @@ jobs:
       - name: Launch EC2 and wait (scipts will install docker any run docker compose)
         run: bash scripts/run-instances.sh -u scripts/user-data.sh
 
-      # Deploy to Staging: Terminate Instance
-      - name: Terminate Instance
-        run: |
-          echo "Terminating EC2 instance..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
-          echo "Instance terminated successfully."
-
       - name: Attach IAM Role to EC2
         run: |
           echo "associating instance ID:${{ env.INSTANCE_ID }} with IAM Role: ${{ env.IAM_ROLE_NAME }}"
@@ -129,3 +121,10 @@ jobs:
               aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin ${{ env.AMI_ID }}.dkr.ecr.$REGION.amazonaws.com && \
               docker compose up -d
           '
+          
+      - name: Terminate Instance
+        run: |
+          echo "Terminating EC2 instance..."
+          aws ec2 terminate-instances --instance-ids $INSTANCE_ID --region $REGION
+          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID --region $REGION
+          echo "Instance terminated successfully."
