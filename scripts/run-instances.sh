@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # Ensure the .env file exists
 if [ ! -f .env ]; then
   echo "Error: .env file not found."
@@ -152,7 +153,6 @@ if [ $? -eq 0 ]; then
 	echo "Waiting for instance to be running..."
 	aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 	
-
 	
 	# Get instance public IP
 	PUBLIC_IP=$(aws ec2 describe-instances \
@@ -160,8 +160,6 @@ if [ $? -eq 0 ]; then
 		--query 'Reservations[0].Instances[0].PublicIpAddress' \
 		--output text)
 		
-	echo "Instance Public IP: $PUBLIC_IP"
-	echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV	
 	
 	# Verify the status checks
 	INSTANCE_STATUS=$(aws ec2 describe-instance-status \
