@@ -2,8 +2,7 @@
 
 
 # Define S3 bucket and .env file
-S3_BUCKET_NAME="entytracker-cicd"
-ENV_FILE_NAME=".env"
+s3_bucket_name="entytracker-cicd"
 
 
 apt-get update
@@ -26,7 +25,7 @@ echo \
 
 apt-get update
 
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin unzip
 
 # Add ubuntu user to docker group to run docker without sudo
 usermod -aG docker ubuntu
@@ -47,16 +46,15 @@ chown -R ubuntu:ubuntu /home/ubuntu/workspace
 cd /home/ubuntu/
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 
-sudo apt install unzip
 unzip -u awscliv2.zip
 sudo /home/ubuntu/aws/install
 
 # Download .env from S3
 echo "Downloading .env file from S3..."
-aws s3 cp s3://$S3_BUCKET_NAME/$ENV_FILE_NAME /home/ubuntu/workspace/.env
+aws s3 cp s3://$s3_bucket_name/.env /home/ubuntu/workspace/.env
 
 # Verify .env download
-if [ -f "/home/ubuntu/.env" ]; then
+if [ -f "/home/ubuntu/workspace/.env" ]; then
     echo ".env file downloaded successfully to /home/ubuntu/workspace/.env"
 else
     echo "Failed to download .env file from S3."
@@ -67,9 +65,6 @@ fi
 echo "Copying .env to the target directory..."
 mkdir -p /home/ubuntu/workspace/entryTracker_CICD
 cp -f /home/ubuntu/workspace/.env /home/ubuntu/workspace/entryTracker_CICD/.env
-
-# Make the .env file readable
-chmod 600 /home/ubuntu/workspace/entryTracker_CICD/.env
 
 # Load environment variables
 echo "Loading environment variables from .env..."

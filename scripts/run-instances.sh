@@ -124,7 +124,7 @@ EXISTING_INSTANCE=$(aws ec2 describe-instances \
     --query 'Reservations[*].Instances[*].[InstanceId]' \
     --output text)
 
-if [ ! -z "$EXISTING_INSTANCE" ]; then
+if [ -n "$EXISTING_INSTANCE" ]; then
     echo "Found existing instance with ID: $EXISTING_INSTANCE"
     echo "Terminating existing instance..."
     
