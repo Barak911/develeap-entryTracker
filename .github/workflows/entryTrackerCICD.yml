@@ -78,7 +78,7 @@ jobs:
       # Download .env from S3
       - name: Download .env file from S3
         run: |
-          aws s3 cp s3://entrytracker-cicd/.env .
+          aws s3 cp s3://entytracker-cicd/.env .
 
       # Load environment variables
       - name: Load .env file
