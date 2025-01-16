@@ -93,20 +93,21 @@ jobs:
       # Run run-instance.sh and user-da
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
-            
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.EC2_PRI_KEY }}
-          known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
-          
-      - name: Adding Known Hosts
-        run: ssh-keyscan -H ${{ env.PUBLIC_IP }} >> ~/.ssh/known_hosts
-            
-      - name: Deploy with SSH
+
+      # Using SSM, Docker Compose up and test
+      - name: Docker Compose up
         run: |
-          ssh ubuntu@${{ env.PUBLIC_IP }} '
-              cd /home/ubuntu/workspace/entryTracker_CICD && \
-              aws ecr get-login-password --region ${{ env.REGION }} | docker login --username AWS --password-stdin 796973518097.dkr.ecr.${{ env.REGION }}.amazonaws.com && \
-              docker compose up -d
-          '
+          echo "Executing E2E test script..."
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "echo 'Starting Docker Compose...'",
+              "docker compose up -d",
+              "echo 'Waiting for the application to be ready...'",
+              "MAX_RETRIES=15",
+              "RETRY_INTERVAL=1",
+              "for i in $(seq 1 $MAX_RETRIES); do if curl -s http://localhost:5000 > /dev/null; then echo 'Application is up and running!'; break; fi; echo 'Retry $i/$MAX_RETRIES: Application not ready yet. Retrying in $RETRY_INTERVAL second(s)...'; sleep $RETRY_INTERVAL; done",
+              "if ! curl -s http://localhost:5000 > /dev/null; then echo 'Error: Application did not start within the expected time.'; docker compose logs; exit 1; fi",
+            ] \
+            --region ${{ env.REGION }}
