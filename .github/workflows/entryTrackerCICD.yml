@@ -87,12 +87,13 @@ jobs:
       - name: Make scripts executable
         run: |
           sed -i 's/\r$//' scripts/run-instances.sh
-          sed -i 's/\r$//' scripts/user-data.sh
+          sed -i 's/\r$//' scripts/userdata.sh
           chmod +x scripts/run-instances.sh
       
+      # Run run-instance.sh and user-da
       - name: Launch EC2 and wait
-        run: bash scripts/run-instances.sh -u scripts/user-data.sh
-
+        run: bash scripts/run-instances.sh -u scripts/userdata.sh
+            
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
         with:
