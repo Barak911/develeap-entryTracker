@@ -97,17 +97,30 @@ jobs:
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
-      # Run Docker Compose via SSM
-      - name: Run Docker Compose via SSM
+      # SSM Commands - Health Checks
+      - name: SSM Commands - Health Checks
         run: |
-          echo "Sending SSM command to start Docker Compose..."
-          aws ssm send-command \
-            --instance-ids "${{ env.INSTANCE_ID }}" \
+          echo "Checking site response and MySQL connectivity..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "cd /home/ubuntu/workspace/entryTracker_CICD",
-              "docker compose up -d"
+              # 1) Check HTTP status
+              "echo 'Checking HTTP response on port 5000...'",
+              "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000 || exit 1",
+              
+              # 2) Check MySQL inside the container
+              "echo 'Checking MySQL connectivity (docker exec mysql-db)...'",
+              "docker exec ${{ env.DB_HOST }} mysql -u ${{ env.DB_USER }} -p${{ env.DB_PASSWORD }} -e 'SELECT 1;' || exit 1",
+              
+              "echo 'All checks passed!'"
             ] \
             --region "${{ env.REGION }}" \
             --query "Command.CommandId" \
-            --output text
+            --output text) || { echo 'Error: Failed to send SSM command'; exit 1; }
+      
+          # Wait for the command to finish
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --region "${{ env.REGION }}"
