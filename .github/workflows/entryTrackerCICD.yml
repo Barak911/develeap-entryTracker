@@ -33,7 +33,7 @@ jobs:
       - name: Start app.py
         run: |
           nohup python app.py &
-          sleep 5
+          sleep 2
           if ! pgrep -f "python app.py"; then
             echo "Error: Application failed to start."
             exit 1
@@ -100,15 +100,22 @@ jobs:
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
       # Using SSM, Docker Compose up and test
-      - name: Docker Compose up
+      - name: SSM Commands - Docker Compose up
         run: |
           echo "Executing E2E test script..."
-          aws ssm send-command \
+          COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
               "echo 'Starting Docker Compose...'",
               "cd /home/ubuntu/workspace/entryTracker_CICD",
               "docker compose up -d"
-            ] \
+              ] \
+            --region ${{ env.REGION }} \
+            --query "Command.CommandId" \
+            --output text) || { echo 'Error: Failed to send SSM command'; exit 1; }
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
             --region ${{ env.REGION }}
