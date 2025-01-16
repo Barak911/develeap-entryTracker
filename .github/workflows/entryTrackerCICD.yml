@@ -1,4 +1,4 @@
-name: entryTracker CI\CD
+name: entryTracker CI/CD
 
 on:
   push:
@@ -33,6 +33,11 @@ jobs:
       - name: Start app.py
         run: |
           nohup python app.py &
+          sleep 5
+          if ! pgrep -f "python app.py"; then
+            echo "Error: Application failed to start."
+            exit 1
+          fi
 
       # Part 3: Run unit tests
       - name: Test the application with curl
@@ -60,7 +65,7 @@ jobs:
 
     steps: 
       - name: Checkout App
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       # Configure AWS Credentials
       - name: Configure AWS Credentials
@@ -73,7 +78,7 @@ jobs:
       # Download .env from S3
       - name: Download .env file from S3
         run: |
-          aws s3 cp s3://entytracker-cicd/.env .
+          aws s3 cp s3://entrytracker-cicd/.env .
 
       # Load environment variables
       - name: Load .env file
@@ -101,5 +106,9 @@ jobs:
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters commands=["echo 'Starting Docker Compose...'", "docker compose up -d"] \
+            --parameters commands=[
+              "echo 'Starting Docker Compose...'",
+              "cd /home/ubuntu/workspace/entryTracker_CICD",
+              "docker compose up -d"
+            ] \
             --region ${{ env.REGION }}
