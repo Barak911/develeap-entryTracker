@@ -1,5 +1,3 @@
-name: entryTracker CI/CD
-
 on:
   push:
     branches: [ "main" ]
@@ -99,23 +97,17 @@ jobs:
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
-      # Using SSM, Docker Compose up and test
-      - name: SSM Commands - Docker Compose up
+      # Run Docker Compose via SSM
+      - name: Run Docker Compose via SSM
         run: |
-          echo "Executing E2E test script..."
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
+          echo "Sending SSM command to start Docker Compose..."
+          aws ssm send-command \
+            --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "echo 'Starting Docker Compose...'",
               "cd /home/ubuntu/workspace/entryTracker_CICD",
               "docker compose up -d"
-              ] \
-            --region ${{ env.REGION }} \
+            ] \
+            --region "${{ env.REGION }}" \
             --query "Command.CommandId" \
-            --output text) || { echo 'Error: Failed to send SSM command'; exit 1; }
-
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --region ${{ env.REGION }}
+            --output text
