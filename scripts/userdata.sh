@@ -73,3 +73,7 @@ export $(grep -v '^#' /home/ubuntu/workspace/entryTracker_CICD/.env | xargs)
 # Verify environment variables
 echo "Environment variables loaded:"
 env
+
+# docker compose up -d
+cd /home/ubuntu/workspace/entryTracker_CICD/
+docker compose up -d
