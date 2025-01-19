@@ -97,69 +97,58 @@ jobs:
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
-      # Step 1: SSM Commands - Health Checks
-      - name: SSM Commands - Initiate Health Checks
+      - name: Monitor Container Health
         run: |
-          echo "Initiating health checks via SSM..."
+          echo "Monitoring container health using SSM..."
+          
+          # Define retry settings
+          MAX_RETRIES=60 # 5 minutes (60 retries with 5-second interval)
+          RETRY_INTERVAL=5 # 5 seconds between retries
       
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --parameters '{"commands": [
-              "echo Starting health checks...",
-              "MAX_RETRIES=30",
-              "RETRY_INTERVAL=10",
-              "for i in $(seq 1 $MAX_RETRIES); do",
-              "  echo Checking HTTP response on port 5000...",
-              "  RESPONSE=$(curl -s -o /dev/null -w \\\"%{http_code}\\\" http://localhost:5000) || RESPONSE=000",
-              "  if [ \\\"$RESPONSE\\\" -eq 200 ]; then",
-              "    echo HTTP check passed with response code $RESPONSE",
-              "    echo Checking MySQL connectivity...",
-              "    docker exec mysql-db mysql -u \\\"${DB_USER}\\\" -p\\\"${DB_PASSWORD}\\\" -e \\\"SELECT 1;\\\" && echo All checks passed! && exit 0",
-              "  fi",
-              "  echo Retry $i/$MAX_RETRIES: HTTP response $RESPONSE or MySQL connectivity failed. Retrying in $RETRY_INTERVAL seconds...",
-              "  sleep $RETRY_INTERVAL",
-              "done",
-              "echo Timeout reached: Health checks failed after $((MAX_RETRIES * RETRY_INTERVAL / 60)) minutes.",
-              "exit 1"
-            ]}' \
-            --region "$REGION" \
-            --query "Command.CommandId" \
-            --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
-      
-          echo "SSM Command ID: $COMMAND_ID"
-          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
-      
-      # Step 2: Monitor SSM Command
-      - name: SSM Commands - Monitor Health Checks
-        run: |
-          echo "Monitoring health check SSM command status..."
-      
-          for attempt in {1..30}; do
-            STATUS=$(aws ssm get-command-invocation \
-              --command-id "$COMMAND_ID" \
-              --instance-id "$INSTANCE_ID" \
-              --region "$REGION" \
-              --query "Status" \
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES: Checking health of containers..."
+            
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids "${{ env.INSTANCE_ID }}" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Check Docker container health" \
+              --parameters commands=[
+                "sudo docker inspect --format='{{json .State.Health}}' flask-app || echo 'No health check configured for flask-app'",
+                "sudo docker inspect --format='{{json .State.Health}}' mysql-db || echo 'No health check configured for mysql-db'"
+              ] \
+              --region "${{ env.REGION }}" \
+              --query "Command.CommandId" \
               --output text)
       
-            echo "Command status: $STATUS"
+            echo "Waiting for SSM command to complete..."
+            aws ssm wait command-executed \
+              --instance-id "${{ env.INSTANCE_ID }}" \
+              --command-id "$COMMAND_ID" \
+              --region "${{ env.REGION }}"
       
-            if [ "$STATUS" == "Success" ]; then
-              echo "Health checks passed!"
+            OUTPUT=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "${{ env.INSTANCE_ID }}" \
+              --region "${{ env.REGION }}" \
+              --query "StandardOutputContent" \
+              --output text)
+      
+            echo "Command output: $OUTPUT"
+      
+            # Check for healthy status
+            if echo "$OUTPUT" | grep -q '"Status":"healthy"'; then
+              echo "Containers are healthy!"
               break
-            elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ]; then
-              echo "SSM Command failed with status: $STATUS"
+            fi
+      
+            if [ "$i" -eq "$MAX_RETRIES" ]; then
+              echo "Error: Containers did not become healthy within the timeout period."
               exit 1
             fi
       
-            if [ $attempt -eq 30 ]; then
-              echo "Timeout reached: SSM Command did not succeed within 5 minutes."
-              exit 1
-            fi
-      
-            echo "Waiting for next check... (${attempt}/30)"
-            sleep 10
+            echo "Containers are not healthy yet. Retrying in $RETRY_INTERVAL seconds..."
+            sleep $RETRY_INTERVAL
           done
+
 
 
