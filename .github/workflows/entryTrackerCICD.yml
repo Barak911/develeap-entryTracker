@@ -105,14 +105,14 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
+            --parameters '{"commands": [
               "echo Checking HTTP response on port 5000...",
-              "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000 || exit 1",
+              "curl -s -o /dev/null -w \\\"%{http_code}\\\" http://localhost:5000 || exit 1",
               "echo Checking MySQL connectivity (docker exec mysql-db)...",
-              "docker exec mysql-db mysql -u '"${{ env.DB_USER }}"' -p'"${{ env.DB_PASSWORD }}"' -e \"SELECT 1;\" || exit 1",
+              "docker exec mysql-db mysql -u \\\"${DB_USER}\\\" -p\\\"${DB_PASSWORD}\\\" -e \\\"SELECT 1;\\\" || exit 1",
               "echo All checks passed!"
-            ]' \
-            --region "${{ env.REGION }}" \
+            ]}' \
+            --region "$REGION" \
             --query "Command.CommandId" \
-            --output text \
-          ) || { echo "Error: Failed to send SSM command"; exit 1; }
+            --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
+
