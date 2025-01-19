@@ -2,8 +2,8 @@
 
 # Define variables
 FLASK_URL="http://localhost:5000/"
-MAX_RETRIES=15
-RETRY_INTERVAL=10
+MAX_RETRIES=60  # 5 minutes / 5 seconds = 60 retries
+RETRY_INTERVAL=5
 
 # Function to check Flask app availability
 check_flask_app() {
