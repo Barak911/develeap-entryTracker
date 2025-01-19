@@ -104,7 +104,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["chmod +x /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh","/home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"]}' \
+            --parameters '{"commands":["chmod +x /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh",cd "/home/ubuntu/workspace/entryTracker_CICD/scripts/","sudo bash e2e-tests.sh"]}' \
             --query "Command.CommandId" \
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
