@@ -126,4 +126,30 @@ jobs:
       # Fetch the logs for e2e-tests.sh
       - name: Fetch e2e-tests.sh log
         run: |
-          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
+          ssh -i ${{ env.KEY_ID }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
+
+      # Check e2e-tests.sh log for success message
+      - name: Check E2E Test Results
+        run: |
+          LOG_CONTENT=$(ssh -i ${{ env.KEY_ID }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "cat /tmp/e2e_tests.log")
+          echo "$LOG_CONTENT"
+          if echo "$LOG_CONTENT" | grep -q "All health checks passed successfully."; then
+          echo "E2E tests passed. Proceeding to push to ECR."
+            else
+          echo "E2E tests failed."
+          exit 1
+            fi
+
+      # login to ECR
+      - name: Login to Amazon ECR
+        run: aws ecr get-login-password --region ${{ env.REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+
+      # Build, tag, and push the Docker image to Amazon ECR
+      - name: Build, tag, and push Docker image
+        env:
+          ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
