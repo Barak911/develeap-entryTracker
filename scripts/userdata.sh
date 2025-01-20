@@ -52,6 +52,9 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip
 unzip -u awscliv2.zip
 sudo /home/ubuntu/aws/install
 
+# Install ssh-over-ssm on the instance
+pip install ssh-over-ssm
+
 # Download .env from S3
 echo "Downloading .env file from S3..."
 aws s3 cp s3://$s3_bucket_name/.env /home/ubuntu/workspace/.env
@@ -81,8 +84,8 @@ env
 cd /home/ubuntu/workspace/entryTracker_CICD/
 docker compose up -d
 
-# wait for containers to start
-sleep 180
+# wait for contaners to start
+sleep 80
 
 # Check if mysql-db is running
 echo "Checking mysql-db container status..."
