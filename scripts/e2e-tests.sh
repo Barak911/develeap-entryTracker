@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Redirect all output to a log file
+exec > /tmp/e2e_tests.log 2>&1
+
 # Define variables
 FLASK_URL="http://localhost:5000/"
 MAX_RETRIES=60  # 5 minutes / 5 seconds = 60 retries
@@ -48,3 +51,11 @@ if [ $RESULT -ne 0 ]; then
 else
   echo "All health checks passed successfully."
 fi
+
+
+# Capture the exit code
+EXIT_CODE=$?
+echo $EXIT_CODE > /tmp/e2e_tests_exit_code.txt
+
+# Exit with the same code
+exit $EXIT_CODE

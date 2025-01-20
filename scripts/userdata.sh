@@ -1,10 +1,13 @@
 #!/bin/bash
 
+# Redirect all output to a log file
+exec > /tmp/userdata.log 2>&1
 
 # Define S3 bucket and .env file
 s3_bucket_name="entytracker-cicd"
 
 
+# Update the package list
 apt-get update
 
 # Install prerequisites
@@ -77,3 +80,33 @@ env
 # docker compose up -d
 cd /home/ubuntu/workspace/entryTracker_CICD/
 docker compose up -d
+
+# wait for contaners to start
+sleep 80
+
+# Check if mysql-db is running
+echo "Checking mysql-db container status..."
+MYSQL_DB_STATUS=$(docker inspect -f {{.State.Running}} mysql-db)
+if [ "$MYSQL_DB_STATUS" == "true" ]; then
+  echo "mysql-db container is running."
+else
+  echo "Error: mysql-db container is not running."
+  exit 1
+fi
+
+# Check if flask-app is running
+echo "Checking flask-app container status..."
+FLASK_APP_STATUS=$(docker inspect -f {{.State.Running}} flask-app)
+if [ "$FLASK_APP_STATUS" == "true" ]; then
+  echo "flask-app container is running."
+else
+  echo "Error: flask-app container is not running."
+  exit 1
+fi
+
+# Capture the exit code
+EXIT_CODE=$?
+echo $EXIT_CODE > /tmp/userdata_exit_code.txt
+
+# Exit with the same code
+exit $EXIT_CODE
