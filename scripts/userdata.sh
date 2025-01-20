@@ -81,8 +81,8 @@ env
 cd /home/ubuntu/workspace/entryTracker_CICD/
 docker compose up -d
 
-# wait for contaners to start
-sleep 80
+# wait for containers to start
+sleep 180
 
 # Check if mysql-db is running
 echo "Checking mysql-db container status..."
