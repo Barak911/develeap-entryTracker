@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 env:
-  REGION: "ap-south-1"
+  REGION: "ap-south-1"  # Change this to your AWS region
 
 
 jobs:
@@ -74,6 +74,11 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
+          
+      # Download .env from S3
+      - name: Download .env and SSH key from S3
+        run: |
+          aws s3 cp s3://entytracker-cicd/.env .
 
       # Load environment variables
       - name: Load .env file
@@ -82,11 +87,10 @@ jobs:
           path: '.'
           filenames: '.env'
           expand: true  
-          
-      # Download .env and SSH key from S3
-      - name: Download .env and SSH key from S3
+
+      # Download SSH key from S3
+      - name: Download SSH key from S3
         run: |
-          aws s3 cp s3://entytracker-cicd/.env .
           aws s3 cp s3://entytracker-cicd/${{ env.KEY_NAME }}.pem .
 
       # Set permissions for the SSH key
