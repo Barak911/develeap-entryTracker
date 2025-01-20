@@ -95,20 +95,34 @@ jobs:
           sed -i 's/\r$//' scripts/userdata.sh
           chmod +x scripts/run-instances.sh
       
+      
       # Run run-instance.sh and userdata.sh
       - name: Launch EC2 and wait
-        run: bash scripts/run-instances.sh -u scripts/userdata.sh
+        run: |
+          bash scripts/run-instances.sh -u scripts/userdata.sh
 
       # Wait for 5 minutes
       - name: Wait for 5 minutes
         run: sleep 300
+
+      # Fetch the command ID for userdata.sh
+      - name: Fetch userdata.sh command ID
+        run: |
+          USERDATA_COMMAND_ID=$(aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters '{"commands":["cat /tmp/userdata_exit_code.txt"]}' \
+            --query "Command.CommandId" \
+            --region ${{ env.REGION }} \
+            --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
+          echo "USERDATA_COMMAND_ID=$USERDATA_COMMAND_ID" >> $GITHUB_ENV
 
       # Check the exit code and log of userdata.sh
       - name: Check userdata.sh exit code and log
         run: |
           echo "Fetching userdata.sh exit code..."
           USERDATA_EXIT_CODE=$(aws ssm get-command-invocation \
-            --command-id $USERDATA_COMMAND_ID \
+            --command-id ${{ env.USERDATA_COMMAND_ID }} \
             --instance-id $INSTANCE_ID \
             --region ${{ env.REGION }} \
             --query "StandardOutputContent" \
@@ -118,7 +132,7 @@ jobs:
           USERDATA_LOG=$(aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["cat /tmp/userdata.log"]}' \
+            --parameters '{"commands":["tail -n 10 /tmp/userdata.log"]}' \
             --query "Command.CommandId" \
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to fetch userdata.sh log"; exit 1; }
@@ -143,13 +157,15 @@ jobs:
             --query "Command.CommandId" \
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
+          echo "E2E_TESTS_COMMAND_ID=$E2E_TESTS_COMMAND_ID" >> $GITHUB_ENV
 
-          echo "Command ID: $E2E_TESTS_COMMAND_ID"
-
+      # Wait for E2E tests to complete
+      - name: Wait for E2E tests to complete
+        run: |
           echo "Waiting for E2E tests to complete..."
           for i in {1..60}; do
             STATUS=$(aws ssm get-command-invocation \
-              --command-id $E2E_TESTS_COMMAND_ID \
+              --command-id ${{ env.E2E_TESTS_COMMAND_ID }} \
               --instance-id $INSTANCE_ID \
               --region ${{ env.REGION }} \
               --query "Status" \
@@ -169,7 +185,7 @@ jobs:
         run: |
           echo "Fetching e2e-tests.sh exit code..."
           E2E_TESTS_EXIT_CODE=$(aws ssm get-command-invocation \
-            --command-id $E2E_TESTS_COMMAND_ID \
+            --command-id ${{ env.E2E_TESTS_COMMAND_ID }} \
             --instance-id $INSTANCE_ID \
             --region ${{ env.REGION }} \
             --query "StandardOutputContent" \
@@ -179,7 +195,7 @@ jobs:
           E2E_TESTS_LOG=$(aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["cat /tmp/e2e_tests.log"]}' \
+            --parameters '{"commands":["tail -n 10 /tmp/e2e_tests.log"]}' \
             --query "Command.CommandId" \
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to fetch e2e-tests.sh log"; exit 1; }
