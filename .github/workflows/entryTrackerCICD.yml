@@ -75,10 +75,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
 
-      # Download .env from S3
-      - name: Download .env file from S3
+      # Download .env and SSH key from S3
+      - name: Download .env and SSH key from S3
         run: |
           aws s3 cp s3://entytracker-cicd/.env .
+          aws s3 cp s3://entytracker-cicd/barak-SSH-2.pem .
 
       # Load environment variables
       - name: Load .env file
@@ -88,14 +89,17 @@ jobs:
           filenames: '.env'
           expand: true  
 
+      # Set permissions for the SSH key
+      - name: Set permissions for SSH key
+        run: |
+          chmod 400 barak-SSH-2.pem
+
       # Deploy to Staging: Deploy Instance
       - name: Make scripts executable
         run: |
           sed -i 's/\r$//' scripts/run-instances.sh
-          sed -i 's/\r$//' scripts/userdata.sh
           chmod +x scripts/run-instances.sh
-      
-      
+
       # Run run-instance.sh and userdata.sh
       - name: Launch EC2 and wait
         run: |
@@ -105,28 +109,21 @@ jobs:
       - name: Wait for 3 minutes
         run: sleep 180
 
-      - name: AWS SSM Send Command
-        uses: preludedynamics/aws-ssm-action@master
-        id: ec2-command
-        with:
-          aws-region: ${{ ENV.REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          instance-ids: ${{ env.INSTANCE_ID }}
-          mode: send
+      # Fetch the logs for userdata.sh
+      - name: Fetch userdata.sh log
+        run: |
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "tail -n 15 /tmp/userdata.log"
 
-          working-directory: /home/ec2-user
-          command: ls
-          comment: Get list
+      # Run e2e-tests.sh on the instance using SSH
+      - name: Run E2E Tests on EC2 via SSH
+        run: |
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
 
-      # Get SSM command result
-      - name: AWS SSM Result
-        uses: preludedynamics/aws-ssm-action@master
-        id: ec2-command-result
-        with:
-          aws-region: ${{ ENV.REGION }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          instance-ids: ${{ env.INSTANCE_ID }}
-          mode: result
-          command-id: ${{ steps.ec2-command.outputs.command-id }}
+      # Wait 10 sec
+      - name: Wait 10 seconds
+        run: sleep 10
+
+      # Fetch the logs for e2e-tests.sh
+      - name: Fetch e2e-tests.sh log
+        run: |
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "tail -n 15 /tmp/e2e_tests.log"
