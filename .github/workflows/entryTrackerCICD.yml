@@ -99,16 +99,47 @@ jobs:
       - name: Launch EC2 and wait
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
-      # Wait for 120 seconds
+      # Wait for 5 minutes
       - name: Wait for 5 minutes
         run: sleep 300
+
+      # Wait for userdata.sh to complete
+      - name: Wait for userdata.sh to complete
+        run: |
+          echo "Waiting for userdata.sh to complete..."
+          USERDATA_COMMAND_ID=$(aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters '{"commands":["cat /tmp/userdata_exit_code.txt"]}' \
+            --query "Command.CommandId" \
+            --region ${{ env.REGION }} \
+            --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
+
+          echo "Command ID: $USERDATA_COMMAND_ID"
+
+          for i in {1..60}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $USERDATA_COMMAND_ID \
+              --instance-id $INSTANCE_ID \
+              --region ${{ env.REGION }} \
+              --query "Status" \
+              --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" == "Success" ]; then
+              break
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "Command failed"
+              exit 1
+            fi
+            sleep 10
+          done
 
       # Check the exit code and log of userdata.sh
       - name: Check userdata.sh exit code and log
         run: |
           echo "Fetching userdata.sh exit code..."
           USERDATA_EXIT_CODE=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
+            --command-id $USERDATA_COMMAND_ID \
             --instance-id $INSTANCE_ID \
             --region ${{ env.REGION }} \
             --query "StandardOutputContent" \
@@ -136,7 +167,7 @@ jobs:
       - name: Run E2E Tests on EC2 via SSM
         run: |
           echo "Executing E2E test script on EC2 via SSM..."
-          COMMAND_ID=$(aws ssm send-command \
+          E2E_TESTS_COMMAND_ID=$(aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
             --parameters '{"commands":["chmod +x /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh","cd /home/ubuntu/workspace/entryTracker_CICD/scripts/","sudo bash e2e-tests.sh"]}' \
@@ -144,18 +175,32 @@ jobs:
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
 
+          echo "Command ID: $E2E_TESTS_COMMAND_ID"
+
           echo "Waiting for E2E tests to complete..."
-          aws ssm wait command-executed \
-            --instance-id $INSTANCE_ID \
-            --command-id $COMMAND_ID \
-            --region ${{ env.REGION }}
+          for i in {1..60}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $E2E_TESTS_COMMAND_ID \
+              --instance-id $INSTANCE_ID \
+              --region ${{ env.REGION }} \
+              --query "Status" \
+              --output text)
+            echo "Status: $STATUS"
+            if [ "$STATUS" == "Success" ]; then
+              break
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "Command failed"
+              exit 1
+            fi
+            sleep 10
+          done
 
       # Check the exit code and log of e2e-tests.sh
       - name: Check e2e-tests.sh exit code and log
         run: |
           echo "Fetching e2e-tests.sh exit code..."
           E2E_TESTS_EXIT_CODE=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
+            --command-id $E2E_TESTS_COMMAND_ID \
             --instance-id $INSTANCE_ID \
             --region ${{ env.REGION }} \
             --query "StandardOutputContent" \
