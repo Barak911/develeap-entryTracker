@@ -110,7 +110,7 @@ jobs:
         uses: peterkimzz/aws-ssm-send-command@master
         id: ssm
         with:
-          instance-ids: $INSTANCE_ID
+          instance-ids: ${{ env.INSTANCE_ID }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
@@ -123,7 +123,7 @@ jobs:
         uses: peterkimzz/aws-ssm-send-command@master
         id: fetch-logs
         with:
-          instance-ids: $INSTANCE_ID
+          instance-ids: ${{ env.INSTANCE_ID }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
