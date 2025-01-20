@@ -104,14 +104,29 @@ jobs:
       # Wait for 3 minutes
       - name: Wait for 3 minutes
         run: sleep 180
-      
-      - name: Execute command
-        uses: debugger24/action-aws-ssm-run-command@v1
+
+      - name: AWS SSM Send Command
+        uses: preludedynamics/aws-ssm-action@master
+        id: ec2-command
         with:
-            aws-region: ${{ env.REGION }}
-            instance-ids: |
-              ${{ env.INSTANCE_ID }}
-            commands: |
-              pwd
-              ls
-              echo "Executed by Github Actions Workflow #${{ github.run_id }}" >> test.txt
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          instance-ids: ${{ env.INSTANCE_ID }}
+          mode: send
+
+          working-directory: /home/ec2-user
+          command: ls
+          comment: Get list
+
+      # Get SSM command result
+      - name: AWS SSM Result
+        uses: preludedynamics/aws-ssm-action@master
+        id: ec2-command-result
+        with:
+          aws-region: ${{ secrets.REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          instance-ids: i-3tgrb43g345t4
+          mode: result
+          command-id: ${{ steps.ec2-command.outputs.command-id }}
