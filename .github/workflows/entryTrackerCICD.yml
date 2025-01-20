@@ -75,12 +75,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.REGION }}
 
-      # Download .env and SSH key from S3
-      - name: Download .env and SSH key from S3
-        run: |
-          aws s3 cp s3://entytracker-cicd/.env .
-          aws s3 cp s3://entytracker-cicd/${{ env.KEY_NAME }}.pem .
-
       # Load environment variables
       - name: Load .env file
         uses: aarcangeli/load-dotenv@v1
@@ -88,6 +82,12 @@ jobs:
           path: '.'
           filenames: '.env'
           expand: true  
+          
+      # Download .env and SSH key from S3
+      - name: Download .env and SSH key from S3
+        run: |
+          aws s3 cp s3://entytracker-cicd/.env .
+          aws s3 cp s3://entytracker-cicd/${{ env.KEY_NAME }}.pem .
 
       # Set permissions for the SSH key
       - name: Set permissions for SSH key
