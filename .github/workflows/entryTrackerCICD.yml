@@ -109,7 +109,7 @@ jobs:
         uses: preludedynamics/aws-ssm-action@master
         id: ec2-command
         with:
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ ENV.REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           instance-ids: ${{ env.INSTANCE_ID }}
@@ -124,9 +124,9 @@ jobs:
         uses: preludedynamics/aws-ssm-action@master
         id: ec2-command-result
         with:
-          aws-region: ${{ secrets.REGION }}
+          aws-region: ${{ ENV.REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          instance-ids: i-3tgrb43g345t4
+          instance-ids: ${{ env.INSTANCE_ID }}
           mode: result
           command-id: ${{ steps.ec2-command.outputs.command-id }}
