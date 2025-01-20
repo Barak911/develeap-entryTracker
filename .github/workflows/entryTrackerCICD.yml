@@ -115,10 +115,14 @@ jobs:
             --region ${{ env.REGION }} \
             --output text) || { echo "Error: Failed to send SSM command"; exit 1; }
 
+          echo "Command ID: $COMMAND_ID"
+
           aws ssm wait command-executed \
             --instance-id $INSTANCE_ID \
             --command-id $COMMAND_ID \
-            --region ${{ env.REGION }}
+            --region ${{ env.REGION }} \
+            --max-attempts 60 \
+            --delay 10
 
       # Check the exit code and log of userdata.sh
       - name: Check userdata.sh exit code and log
