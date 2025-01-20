@@ -100,8 +100,8 @@ jobs:
         run: bash scripts/run-instances.sh -u scripts/userdata.sh
 
       # Wait for 120 seconds
-      - name: Wait for 100 seconds
-        run: sleep 120
+      - name: Wait for 5 minutes
+        run: sleep 300
 
       # Check the exit code and log of userdata.sh
       - name: Check userdata.sh exit code and log
