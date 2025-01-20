@@ -79,7 +79,7 @@ jobs:
       - name: Download .env and SSH key from S3
         run: |
           aws s3 cp s3://entytracker-cicd/.env .
-          aws s3 cp s3://entytracker-cicd/${{ env.KEY_NAME }} .
+          aws s3 cp s3://entytracker-cicd/${{ env.KEY_NAME }}.pem .
 
       # Load environment variables
       - name: Load .env file
@@ -92,7 +92,7 @@ jobs:
       # Set permissions for the SSH key
       - name: Set permissions for SSH key
         run: |
-          chmod 400 ${{ env.KEY_NAME }}
+          chmod 400 ${{ env.KEY_NAME }}.pem
 
       # Deploy to Staging: Deploy Instance
       - name: Make scripts executable
@@ -112,12 +112,12 @@ jobs:
       # Fetch the logs for userdata.sh
       - name: Fetch userdata.sh log
         run: |
-          ssh -i ${{ env.KEY_NAME }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/userdata.log"
+          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/userdata.log"
 
       # Run e2e-tests.sh on the instance using SSH
       - name: Run E2E Tests on EC2 via SSH
         run: |
-          ssh -i ${{ env.KEY_NAME }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
+          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
 
       # Wait 10 sec
       - name: Wait 10 seconds
@@ -126,12 +126,12 @@ jobs:
       # Fetch the logs for e2e-tests.sh
       - name: Fetch e2e-tests.sh log
         run: |
-          ssh -i "${{ env.KEY_NAME }}" -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
+          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
 
       # Check e2e-tests.sh log for success message
       - name: Check E2E Test Results
         run: |
-          LOG_CONTENT=$(ssh -i ${{ env.KEY_NAME }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "cat /tmp/e2e_tests.log")
+          LOG_CONTENT=$(ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "cat /tmp/e2e_tests.log")
           echo "$LOG_CONTENT"
           if echo "$LOG_CONTENT" | grep -q "All health checks passed successfully."; then
           echo "E2E tests passed. Proceeding to push to ECR."
