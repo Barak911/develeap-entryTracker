@@ -112,12 +112,12 @@ jobs:
       # Fetch the logs for userdata.sh
       - name: Fetch userdata.sh log
         run: |
-          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "tail -n 15 /tmp/userdata.log"
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/userdata.log"
 
       # Run e2e-tests.sh on the instance using SSH
       - name: Run E2E Tests on EC2 via SSH
         run: |
-          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
 
       # Wait 10 sec
       - name: Wait 10 seconds
@@ -126,4 +126,4 @@ jobs:
       # Fetch the logs for e2e-tests.sh
       - name: Fetch e2e-tests.sh log
         run: |
-          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.INSTANCE_IP }} "tail -n 15 /tmp/e2e_tests.log"
+          ssh -i barak-SSH-2.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
