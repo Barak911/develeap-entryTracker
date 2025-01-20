@@ -101,25 +101,33 @@ jobs:
         run: |
           bash scripts/run-instances.sh -u scripts/userdata.sh
 
-      # Wait for 5 minutes
-      - name: Wait for 5 minutes
-        run: sleep 300
+      # Wait for 3 minutes
+      - name: Wait for 3 minutes
+        run: sleep 180
+      
+      # Use AWS SSM to send command to the instance
+      - name: AWS SSM Send-Command - Run E2E tests on EC2 instance
+        uses: peterkimzz/aws-ssm-send-command@master
+        id: ssm
+        with:
+          instance-ids: $INSTANCE_ID
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
 
-      # Fetch the logs for userdata.sh
-      - name: Fetch userdata.sh log
-        run: |
-          ssh-over-ssm --region ${{ env.REGION }} --instance-id $INSTANCE_ID "tail -n 15 /tmp/userdata.log"
+          working-directory: /home/ubuntu/workspace/entryTracker_CICD/
+          command: /bin/sh /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh 2>&1 | tee /tmp/e2e_tests.log
+          comment: Run E2E tests on EC2 instance
 
-      # Run e2e-tests.sh on the instance using ssh-over-ssm
-      - name: Run E2E Tests on EC2 via ssh-over-ssm
-        run: |
-          ssh-over-ssm --region ${{ env.REGION }} --instance-id $INSTANCE_ID "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
+      - name: AWS SSM Send-Command - Fetch E2E test logs
+        uses: peterkimzz/aws-ssm-send-command@master
+        id: fetch-logs
+        with:
+          instance-ids: $INSTANCE_ID
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.REGION }}
           
-      # Wait 10 sec
-      - name: Wait 10 seconds
-        run: sleep 10
-        
-      # Fetch the logs for e2e-tests.sh
-      - name: Fetch e2e-tests.sh log
-        run: |
-          ssh-over-ssm --region ${{ env.REGION }} --instance-id $INSTANCE_ID "tail -n 15 /tmp/e2e_tests.log"
+          working-directory: /home/ubuntu/workspace/entryTracker_CICD/
+          command: cat /tmp/e2e_tests.log
+          comment: Fetch E2E test logs from EC2 instance
