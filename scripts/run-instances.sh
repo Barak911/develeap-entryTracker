@@ -12,10 +12,6 @@ set -a # Automatically export all variables
 source .env
 set +a # Disable automatic export
 
-# Install ssh-over-ssm on the runner
-pip install ssh-over-ssm
-
-
 # Help function
 usage() {
     echo "Usage: $0 [OPTIONS]"
