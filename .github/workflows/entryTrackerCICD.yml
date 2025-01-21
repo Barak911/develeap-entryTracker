@@ -164,7 +164,7 @@ jobs:
       # SSH into the PROD_INSTANCE and run docker-compose down
       - name: (CD) Run docker-compose down
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /home/ubuntu/workspace/entryTracker_CICD/docker-compose.yml down"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker compose -f /home/ubuntu/workspace/entryTracker_CICD/docker-compose.yml down"
 
       # SSH into the PROD_INSTANCE and remove old Docker images
       - name: (CD) Remove old Docker images from PROD
@@ -179,7 +179,7 @@ jobs:
       # SSH into the PROD_INSTANCE and run docker-compose up
       - name: (CD) Run docker-compose up
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /home/ubuntu/workspace/entryTracker_CICD/docker-compose.yml up -d"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker compose -f /home/ubuntu/workspace/entryTracker_CICD/docker-compose.yml up -d"
       
       # Run Post-Deploy tests
       - name: (CD) e2e-tests.sh on PROD_INSTANCE
