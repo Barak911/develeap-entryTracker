@@ -78,7 +78,7 @@ jobs:
           aws-region: ${{ env.REGION }}
           
       # Download .env from S3
-      - name: Download .env and SSH key from S3
+      - name: Download .env from S3
         run: |
           aws s3 cp s3://${{ env.BUCKET_NAME }}/.env .
 
