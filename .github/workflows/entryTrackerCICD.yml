@@ -164,7 +164,7 @@ jobs:
       # SSH into the PROD_INSTANCE and run docker-compose down
       - name: Run docker-compose down
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /path/to/docker-compose.yml down"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose down"
 
       # SSH into the PROD_INSTANCE and remove old Docker images
       - name: Remove old Docker images
@@ -179,5 +179,4 @@ jobs:
       # SSH into the PROD_INSTANCE and run docker-compose up
       - name: Run docker-compose up
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /path/to/docker-compose.yml up -d"
-
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose up -d"
