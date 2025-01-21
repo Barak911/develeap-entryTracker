@@ -89,16 +89,6 @@ jobs:
           filenames: '.env'
           expand: true  
 
-      # Download SSH key from S3
-      - name: Download SSH key from S3
-        run: |
-          aws s3 cp s3://${{ env.BUCKET_NAME }}/${{ env.KEY_NAME }}.pem .
-
-      # Set permissions for the SSH key
-      - name: Set permissions for SSH key
-        run: |
-          chmod 400 ${{ env.KEY_NAME }}.pem
-
       # Deploy to Staging: Deploy Instance
       - name: Make scripts executable
         run: |
@@ -117,12 +107,12 @@ jobs:
       # Fetch the logs for userdata.sh
       - name: Fetch userdata.sh log
         run: |
-          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/userdata.log"
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/userdata.log"
 
       # Run e2e-tests.sh on the instance using SSH
       - name: Run E2E Tests on EC2 via SSH
         run: |
-          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "bash /home/ubuntu/workspace/entryTracker_CICD/scripts/e2e-tests.sh"
 
       # Wait 10 sec
       - name: Wait 10 seconds
@@ -131,12 +121,12 @@ jobs:
       # Fetch the logs for e2e-tests.sh
       - name: Fetch e2e-tests.sh log
         run: |
-          ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "tail -n 15 /tmp/e2e_tests.log"
 
       # Check e2e-tests.sh log for success message
       - name: Check E2E Test Results
         run: |
-          LOG_CONTENT=$(ssh -i ${{ env.KEY_NAME }}.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "cat /tmp/e2e_tests.log")
+          LOG_CONTENT=$(ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PUBLIC_IP }} "cat /tmp/e2e_tests.log")
           echo "$LOG_CONTENT"
           if echo "$LOG_CONTENT" | grep -q "All health checks passed successfully."; then
           echo "E2E tests passed. Proceeding to push to ECR."
@@ -158,3 +148,28 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      # Get the PROD_INSTANCE IP address
+      - name: Get PROD_INSTANCE IP
+        id: get-prod-ip
+        run: echo "PROD_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=PROD_INSTANCE" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)" >> $GITHUB_ENV
+
+      # SSH into the PROD_INSTANCE and run docker-compose down
+      - name: Run docker-compose down
+        run: |
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /path/to/docker-compose.yml down"
+
+      # SSH into the PROD_INSTANCE and remove old Docker images
+      - name: Remove old Docker images
+        run: |
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker image prune -af"
+
+      # SSH into the PROD_INSTANCE and pull the latest Docker image
+      - name: Pull latest Docker image
+        run: |
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+
+      # SSH into the PROD_INSTANCE and run docker-compose up
+      - name: Run docker-compose up
+        run: |
+          ssh -i ${{ secrets.SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose -f /path/to/docker-compose.yml up -d"
