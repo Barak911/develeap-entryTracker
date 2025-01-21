@@ -164,19 +164,19 @@ jobs:
       # SSH into the PROD_INSTANCE and run docker-compose down
       - name: Run docker-compose down
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose down"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "sudo docker-compose down"
 
       # SSH into the PROD_INSTANCE and remove old Docker images
       - name: Remove old Docker images
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker image prune -af"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "sudo docker image prune -af"
 
       # SSH into the PROD_INSTANCE and pull the latest Docker image
       - name: Pull latest Docker image
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "sudo docker pull ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
 
       # SSH into the PROD_INSTANCE and run docker-compose up
       - name: Run docker-compose up
         run: |
-          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "docker-compose up -d"
+          ssh -i ssh_key.pem -o StrictHostKeyChecking=no ubuntu@${{ env.PROD_IP }} "sudo docker-compose up -d"
